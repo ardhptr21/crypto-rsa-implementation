@@ -21,15 +21,16 @@ def render_qr(
 
 
 def read_qr(path: str | Path) -> str:
+    # The image is untrusted input: Pillow can raise OSError, ValueError or
+    # DecompressionBombError for broken files, and none may escape.
     try:
         with Image.open(path) as image:
             grayscale = image.convert("L")
-    except (OSError, Image.DecompressionBombError) as error:
-        raise QRReadError("could not open the image") from error
-
-    codes = zxingcpp.read_barcodes(
-        grayscale, formats=zxingcpp.BarcodeFormat.QRCode
-    )
+        codes = zxingcpp.read_barcodes(
+            grayscale, formats=zxingcpp.BarcodeFormat.QRCode
+        )
+    except Exception as error:
+        raise QRReadError("could not read the image") from error
     if not codes:
         raise QRReadError("no QR code found in the image")
     if len(codes) > 1:

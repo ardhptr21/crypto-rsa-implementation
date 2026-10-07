@@ -1,7 +1,9 @@
 from pathlib import Path
+import struct
 import sys
 import tempfile
 import unittest
+import zlib
 
 from PIL import Image
 
@@ -15,6 +17,11 @@ from qrticket.qr import read_qr, render_qr
 
 
 TEXT = "RQT1." + "Ab_-" * 100
+
+
+def _png_chunk(kind: bytes, data: bytes) -> bytes:
+    checksum = zlib.crc32(kind + data) & 0xFFFFFFFF
+    return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", checksum)
 
 
 class QRTests(unittest.TestCase):
@@ -73,6 +80,26 @@ class QRTests(unittest.TestCase):
         path.write_bytes(b"this is not an image")
         with self.assertRaises(QRReadError):
             read_qr(path)
+
+    def test_png_with_oversized_text_chunk_raises_read_error(self) -> None:
+        path = self.directory / "ticket.png"
+        render_qr(TEXT, path)
+        data = path.read_bytes()
+        bomb = _png_chunk(b"zTXt", b"k\x00\x00" + zlib.compress(b"a" * 5_000_000))
+        # Insert the chunk right after the 8-byte signature and the IHDR chunk.
+        header_end = 8 + 12 + struct.unpack(">I", data[8:12])[0]
+        crafted = self.directory / "bomb.png"
+        crafted.write_bytes(data[:header_end] + bomb + data[header_end:])
+        with self.assertRaises(QRReadError):
+            read_qr(crafted)
+
+    def test_png_with_truncated_header_raises_read_error(self) -> None:
+        crafted = self.directory / "truncated.png"
+        crafted.write_bytes(
+            b"\x89PNG\r\n\x1a\n" + _png_chunk(b"IHDR", b"\x00" * 5)
+        )
+        with self.assertRaises(QRReadError):
+            read_qr(crafted)
 
     def test_render_requires_text(self) -> None:
         with self.assertRaises(TypeError):
