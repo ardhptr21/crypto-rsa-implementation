@@ -93,3 +93,38 @@ production systems.
 The private-key JSON format is deliberately readable and currently unencrypted.
 Keep private-key files confidential. Public keys are safe to distribute to QR
 ticket validators.
+
+## QR tickets
+
+The `qrticket` package turns the RSA layer into a ticket system: sign a ticket,
+put it in a QR code, and verify it later using only the public key. RSA itself
+still uses no third-party code; the QR image libraries (`segno`, `zxing-cpp`,
+`Pillow`) are used only to draw and read the QR picture.
+
+A ticket is five fields: `V1|TKT-0001|EVENT-2026|2026-12-31|STUDENT`
+(version, ticket id, event, valid-until date, category). The QR code holds
+`RQT1.<ticket>.<signature>` with both parts base64url-encoded.
+
+```python
+from datetime import date
+from crypto import generate_key_pair
+from qrticket import Ticket, issue_ticket_qr, verify_qr_image
+
+public_key, private_key = generate_key_pair()
+ticket = Ticket("TKT-0001", "EVENT-2026", date(2026, 12, 31), "STUDENT")
+issue_ticket_qr(ticket, private_key, "ticket.png")
+
+result = verify_qr_image("ticket.png", public_key)
+print(result.status)   # VerifyStatus.VALID
+```
+
+Verification checks, in order: the payload format, the RSA-PSS signature, the
+ticket fields, and that today is not past the valid-until date (inclusive).
+Possible results: `VALID`, `BAD_FORMAT`, `BAD_SIGNATURE`, `EXPIRED`,
+`UNREADABLE_QR`.
+
+Limitation: verification is fully offline, so a photographed or copied QR code
+passes as many times as it is scanned. Catching reuse needs a shared list of
+used ticket ids, which this project does not include.
+
+Run the demo with `python examples/qr_demo.py`.
