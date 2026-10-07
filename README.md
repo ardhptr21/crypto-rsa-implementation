@@ -2,7 +2,7 @@
 
 This is the first implementation layer for the offline QR ticket verification
 system. RSA and its supporting number-theory operations are implemented in
-readable Python. The project has **no third-party dependencies**.
+readable Python. The RSA code has **no third-party dependencies**; only the QR layer (below) uses libraries.
 
 Python standard-library modules are used only for general-purpose facilities:
 
@@ -44,7 +44,7 @@ application code separate from tests, examples, and project configuration.
 ## Setup
 
 The tests and example run directly from a source checkout. An editable install
-is optional and does not install any runtime dependencies:
+also installs the QR libraries (segno, zxing-cpp, Pillow) that the tests need:
 
 ```powershell
 python -m pip install -e .

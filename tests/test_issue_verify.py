@@ -127,6 +127,18 @@ class IssueVerifyTests(unittest.TestCase):
         self.assertEqual(result.status, VerifyStatus.BAD_FORMAT)
         self.assertIsNone(result.ticket)
 
+    def test_signature_is_checked_before_the_ticket_is_parsed(self) -> None:
+        payload = encode_payload(b"garbage", b"\x01" * 128)
+        result = verify_payload(payload, self.public_key, today=date(2026, 6, 1))
+        self.assertEqual(result.status, VerifyStatus.BAD_SIGNATURE)
+        self.assertIsNone(result.ticket)
+
+    def test_forged_expired_ticket_is_bad_signature_not_expired(self) -> None:
+        payload = encode_payload(b"V1|X|E|2000-01-01|C", b"\x01" * 128)
+        result = verify_payload(payload, self.public_key, today=date(2026, 6, 1))
+        self.assertEqual(result.status, VerifyStatus.BAD_SIGNATURE)
+        self.assertIsNone(result.ticket)
+
     def test_issue_requires_a_ticket(self) -> None:
         with self.assertRaises(TypeError):
             issue_ticket(b"V1|a|b|2026-12-31|c", self.private_key)  # type: ignore[arg-type]
