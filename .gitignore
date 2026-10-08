@@ -3,6 +3,5 @@ __pycache__/
 *.egg-info/
 .venv/
 .cache/
-
-*.private.json
-private-key*.json
+output/
+keys/

@@ -14,5 +14,8 @@ dependencies = [
     "Pillow>=10",
 ]
 
+[project.scripts]
+rsa-qr-tickets = "qrticket.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]

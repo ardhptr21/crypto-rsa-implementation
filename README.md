@@ -38,6 +38,8 @@ src/
     ticket.py          Validated ticket data and serialization
     payload.py         Compact canonical QR payload encoding
     issuer.py          Ticket signing and QR issuing
+    batch.py           Atomic multi-type ticket batch generation
+    cli.py             Interactive batch-generation wizard
     verifier.py        Signature, event, and expiry verification
     qr.py              QR image rendering and reading
 tests/                 Standard-library unittest suite
@@ -66,6 +68,59 @@ python -m venv .venv
 
 The QR tests and demo require Segno, ZXing-CPP, and Pillow. The RSA and signed
 payload modules do not import those libraries.
+
+## Generate a ticket batch
+
+Start the interactive generator:
+
+```powershell
+uv run rsa-qr-tickets
+```
+
+The equivalent module command is `uv run python -m qrticket`. The guided wizard
+asks for the event, expiration date, output directory, private-key location,
+and any ticket types required by that event. Ticket types are entered
+dynamically and are not restricted to predefined names. Examples include
+Standard, Gold, Platinum, Student, VIP, Press, or Backstage.
+
+Each run receives a random batch id so ticket ids do not repeat when another
+batch is generated for the same event. A completed output directory looks like:
+
+```text
+output/university-expo/
+  manifest.csv
+  public-key.json
+  qr/
+    UNIVERSITY-EXPO-STANDARD-A1B2C3D4E5F60708-0001.png
+    UNIVERSITY-EXPO-GOLD-A1B2C3D4E5F60708-0001.png
+```
+
+The CSV manifest lists the batch id, ticket id, event, expiration date, ticket
+type, and QR filename. The public key can be distributed to scanners. The
+unencrypted private key is stored separately under `keys/` by default and must
+not be shared.
+
+Batch generation is also available as a Python API:
+
+```python
+from datetime import date
+from crypto import generate_key_pair
+from qrticket import TicketType, issue_ticket_batch
+
+_, private_key = generate_key_pair()
+result = issue_ticket_batch(
+    event="University Expo",
+    valid_until=date(2027, 12, 31),
+    ticket_types=(
+        TicketType("STANDARD", 100),
+        TicketType("GOLD", 25),
+        TicketType("PLATINUM", 5),
+    ),
+    private_key=private_key,
+    output_directory="output/university-expo",
+)
+print(result.total)
+```
 
 ## Run the tests
 
