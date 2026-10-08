@@ -91,7 +91,9 @@ wheels = [
 name = "rsa-qr-ticket"
 version = "0.1.0"
 source = { editable = "." }
-dependencies = [
+
+[package.optional-dependencies]
+qr = [
     { name = "pillow" },
     { name = "segno" },
     { name = "zxing-cpp" },
@@ -99,10 +101,11 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "pillow", specifier = ">=10" },
-    { name = "segno", specifier = ">=1.6" },
-    { name = "zxing-cpp", specifier = ">=3.0" },
+    { name = "pillow", marker = "extra == 'qr'", specifier = ">=10" },
+    { name = "segno", marker = "extra == 'qr'", specifier = ">=1.6" },
+    { name = "zxing-cpp", marker = "extra == 'qr'", specifier = ">=3.0" },
 ]
+provides-extras = ["qr"]
 
 [[package]]
 name = "segno"

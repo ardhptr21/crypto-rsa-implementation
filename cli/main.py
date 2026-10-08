@@ -12,8 +12,8 @@ from crypto import (
     save_public_key,
 )
 
-from .batch import ProgressFunction, TicketType, issue_ticket_batch, slugify
-from .ticket import Ticket
+from qrticket.batch import ProgressFunction, TicketType, issue_ticket_batch, slugify
+from qrticket.ticket import Ticket
 
 
 InputFunction = Callable[[str], str]
@@ -306,3 +306,7 @@ def main(argv: list[str] | None = None) -> int:
     except (EOFError, KeyboardInterrupt):
         print("\nCancelled.")
         return 130
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

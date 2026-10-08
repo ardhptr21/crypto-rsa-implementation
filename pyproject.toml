@@ -8,14 +8,14 @@ version = "0.1.0"
 description = "Offline QR ticket verification"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = [
+dependencies = []
+
+[project.optional-dependencies]
+qr = [
     "segno>=1.6",
     "zxing-cpp>=3.0",
     "Pillow>=10",
 ]
-
-[project.scripts]
-rsa-qr-tickets = "qrticket.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

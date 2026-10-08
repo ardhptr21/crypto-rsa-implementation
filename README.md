@@ -39,9 +39,10 @@ src/
     payload.py         Compact canonical QR payload encoding
     issuer.py          Ticket signing and QR issuing
     batch.py           Atomic multi-type ticket batch generation
-    cli.py             Interactive batch-generation wizard
     verifier.py        Signature, event, and expiry verification
     qr.py              QR image rendering and reading
+cli/
+  main.py              Interactive batch-generation wizard
 tests/                 Standard-library unittest suite
 examples/demo.py       End-to-end demonstration
 examples/qr_demo.py    QR ticket demonstration
@@ -53,35 +54,36 @@ application code separate from tests, examples, and project configuration.
 ## Setup
 
 The recommended setup creates a project-local virtual environment and installs
-the versions recorded in `uv.lock`:
+the optional QR image libraries using the versions recorded in `uv.lock`:
 
 ```powershell
-uv sync
+uv sync --extra qr
 ```
 
 The standard `venv` and `pip` workflow is also supported:
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python -m pip install -e .
+.\.venv\Scripts\python -m pip install -e ".[qr]"
 ```
 
-The QR tests and demo require Segno, ZXing-CPP, and Pillow. The RSA and signed
-payload modules do not import those libraries.
+Installing the project without the `qr` extra installs no runtime dependencies.
+The QR tests, CLI, and demo require Segno, ZXing-CPP, and Pillow. The complete
+`src/crypto` package uses only Python's standard library and local modules; it
+does not import or call any external cryptography library.
 
 ## Generate a ticket batch
 
 Start the interactive generator:
 
 ```powershell
-uv run rsa-qr-tickets
+uv run python cli/main.py
 ```
 
-The equivalent module command is `uv run python -m qrticket`. The guided wizard
-asks for the event, expiration date, output directory, private-key location,
-and any ticket types required by that event. Ticket types are entered
-dynamically and are not restricted to predefined names. Examples include
-Standard, Gold, Platinum, Student, VIP, Press, or Backstage.
+The guided wizard asks for the event, expiration date, output directory,
+private-key location, and any ticket types required by that event. Ticket types
+are entered dynamically and are not restricted to predefined names. Examples
+include Standard, Gold, Platinum, Student, VIP, Press, or Backstage.
 
 Each run receives a random batch id so ticket ids do not repeat when another
 batch is generated for the same event. A completed output directory looks like:

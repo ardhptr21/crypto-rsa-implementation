@@ -9,7 +9,7 @@ SOURCE_DIRECTORY = Path(__file__).resolve().parents[1] / "src"
 if str(SOURCE_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(SOURCE_DIRECTORY))
 
-from qrticket.cli import _collect_ticket_types, run_interactive
+from cli.main import _collect_ticket_types, run_interactive
 
 
 class CLITests(unittest.TestCase):
