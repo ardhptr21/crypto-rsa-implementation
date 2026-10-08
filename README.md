@@ -43,6 +43,7 @@ src/
     qr.py              QR image rendering and reading
 cli/
   main.py              Interactive batch-generation wizard
+  scanner.py           Live-camera QR ticket verifier
 tests/                 Standard-library unittest suite
 examples/demo.py       End-to-end demonstration
 examples/qr_demo.py    QR ticket demonstration
@@ -123,6 +124,33 @@ result = issue_ticket_batch(
 )
 print(result.total)
 ```
+
+## Scan tickets with a camera
+
+Start the interactive camera scanner:
+
+```powershell
+uv run python cli/scanner.py
+```
+
+Enter the generated `public-key.json` path and the exact event name. A camera
+window opens and verifies one QR ticket at a time. The window and terminal show
+whether the ticket is valid, expired, for another event, malformed, or has an
+invalid RSA signature. Remove a ticket from view before presenting the next
+one. Press `Q` or `Esc` to finish and print the session summary.
+
+The scanner can also be configured with command-line options:
+
+```powershell
+uv run python cli/scanner.py `
+  --public-key output/university-expo/public-key.json `
+  --event "University Expo" `
+  --camera 0
+```
+
+Use `--camera 1` or another index when the computer has multiple cameras. The
+scanner verifies tickets completely offline. It suppresses repeated reads while
+the same QR remains in view, but it does not maintain a redeemed-ticket ledger.
 
 ## Run the tests
 

@@ -12,6 +12,7 @@ dependencies = []
 
 [project.optional-dependencies]
 qr = [
+    "opencv-python>=4.10",
     "segno>=1.6",
     "zxing-cpp>=3.0",
     "Pillow>=10",
