@@ -63,7 +63,13 @@ class TicketTests(unittest.TestCase):
             parse_ticket("V1|TKT|EVéNT|2026-12-31|STUDENT".encode("utf-8"))
 
     def test_rejects_impossible_and_oddly_formatted_dates(self) -> None:
-        for text in (b"2026-02-30", b"31-12-2026", b"20261231", b"2026-1-5", b"0000-01-01"):
+        for text in (
+            b"2026-02-30",
+            b"31-12-2026",
+            b"20261231",
+            b"2026-1-5",
+            b"0000-01-01",
+        ):
             with self.subTest(text=text):
                 with self.assertRaises(TicketFormatError):
                     parse_ticket(b"V1|TKT-0001|EVENT-2026|" + text + b"|STUDENT")
@@ -74,7 +80,7 @@ class TicketTests(unittest.TestCase):
 
     def test_parse_requires_bytes(self) -> None:
         with self.assertRaises(TypeError):
-            parse_ticket("V1|TKT-0001|EVENT-2026|2026-12-31|STUDENT")  # type: ignore[arg-type]
+            parse_ticket("V1|TKT-0001|EVENT-2026|2026-12-31|STUDENT")
 
 
 if __name__ == "__main__":

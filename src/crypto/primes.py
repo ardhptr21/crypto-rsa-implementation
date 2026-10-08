@@ -34,7 +34,12 @@ _SMALL_PRIMES = (
 _DETERMINISTIC_64_BIT_BASES = (2, 325, 9375, 28178, 450775, 9780504, 1795265022)
 
 
-def _passes_miller_rabin_round(candidate: int, base: int, odd_part: int, power: int) -> bool:
+def _passes_miller_rabin_round(
+    candidate: int,
+    base: int,
+    odd_part: int,
+    power: int,
+) -> bool:
     value = modular_power(base, odd_part, candidate)
     if value in (1, candidate - 1):
         return True

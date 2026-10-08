@@ -3,7 +3,7 @@ import secrets
 
 from .exceptions import KeyGenerationError
 from .number_theory import gcd, lcm, modular_inverse, modular_power
-from .primes import generate_prime
+from .primes import generate_prime, is_probable_prime
 
 
 DEFAULT_PUBLIC_EXPONENT = 65_537
@@ -17,8 +17,8 @@ class RSAPublicKey:
     e: int
 
     def __post_init__(self) -> None:
-        if self.n <= 0:
-            raise ValueError("modulus must be positive")
+        if self.n <= 0 or self.n % 2 == 0:
+            raise ValueError("modulus must be a positive odd integer")
         if self.e < 3 or self.e % 2 == 0:
             raise ValueError("public exponent must be an odd integer >= 3")
         if self.e >= self.n:
@@ -43,6 +43,15 @@ class RSAPrivateKey:
     q: int
 
     def __post_init__(self) -> None:
+        if self.d <= 0:
+            raise ValueError("private exponent must be positive")
+        if (
+            self.p <= 2
+            or self.q <= 2
+            or not is_probable_prime(self.p)
+            or not is_probable_prime(self.q)
+        ):
+            raise ValueError("RSA factors must be probable primes")
         if self.p == self.q:
             raise ValueError("RSA primes must be distinct")
         if self.p * self.q != self.n:
@@ -81,9 +90,12 @@ class RSAPrivateKey:
             * modular_power(blinding_factor, self.e, self.n)
         ) % self.n
         blinded_result = self._crt_operation(blinded)
-        return (
+        result = (
             blinded_result * modular_inverse(blinding_factor, self.n)
         ) % self.n
+        if modular_power(result, self.e, self.n) != representative:
+            raise ValueError("RSA private operation failed its consistency check")
+        return result
 
 
 def generate_key_pair(

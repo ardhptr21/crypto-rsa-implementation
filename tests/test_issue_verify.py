@@ -71,7 +71,33 @@ class IssueVerifyTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             verify_payload(self.issue(), self.public_key, today=datetime(2026, 6, 1))
         with self.assertRaises(TypeError):
-            verify_payload(self.issue(), self.public_key, today="2026-06-01")  # type: ignore[arg-type]
+            verify_payload(self.issue(), self.public_key, today="2026-06-01")
+
+    def test_ticket_can_be_bound_to_the_expected_event(self) -> None:
+        payload = self.issue()
+        matching = verify_payload(
+            payload,
+            self.public_key,
+            today=date(2026, 6, 1),
+            expected_event="EVENT-2026",
+        )
+        other = verify_payload(
+            payload,
+            self.public_key,
+            today=date(2026, 6, 1),
+            expected_event="OTHER-EVENT",
+        )
+        self.assertEqual(matching.status, VerifyStatus.VALID)
+        self.assertEqual(other.status, VerifyStatus.WRONG_EVENT)
+        self.assertEqual(other.ticket, make_ticket())
+
+    def test_expected_event_must_be_a_string(self) -> None:
+        with self.assertRaises(TypeError):
+            verify_payload(
+                self.issue(),
+                self.public_key,
+                expected_event=2026,
+            )
 
     def test_tampered_ticket_is_bad_signature(self) -> None:
         ticket_bytes, signature = decode_payload(self.issue())
@@ -117,7 +143,7 @@ class IssueVerifyTests(unittest.TestCase):
     def test_huge_garbage_is_rejected(self) -> None:
         text = "RQT1." + "A" * 1_000_000 + ".AAAA"
         result = verify_payload(text, self.public_key, today=date(2026, 6, 1))
-        self.assertNotEqual(result.status, VerifyStatus.VALID)
+        self.assertEqual(result.status, VerifyStatus.BAD_FORMAT)
 
     def test_valid_signature_over_a_malformed_ticket_is_bad_format(self) -> None:
         ticket_bytes = b"V1|only|three|fields"
@@ -141,7 +167,7 @@ class IssueVerifyTests(unittest.TestCase):
 
     def test_issue_requires_a_ticket(self) -> None:
         with self.assertRaises(TypeError):
-            issue_ticket(b"V1|a|b|2026-12-31|c", self.private_key)  # type: ignore[arg-type]
+            issue_ticket(b"V1|a|b|2026-12-31|c", self.private_key)
 
 
 class ImageRoundTripTests(unittest.TestCase):
@@ -163,6 +189,17 @@ class ImageRoundTripTests(unittest.TestCase):
         result = verify_qr_image(path, self.public_key, today=date(2026, 6, 1))
         self.assertEqual(result.status, VerifyStatus.VALID)
         self.assertEqual(result.ticket, make_ticket())
+
+    def test_png_is_bound_to_the_expected_event(self) -> None:
+        path = self.directory / "ticket.png"
+        issue_ticket_qr(make_ticket(), self.private_key, path)
+        result = verify_qr_image(
+            path,
+            self.public_key,
+            today=date(2026, 6, 1),
+            expected_event="OTHER-EVENT",
+        )
+        self.assertEqual(result.status, VerifyStatus.WRONG_EVENT)
 
     def test_expired_ticket_in_a_png(self) -> None:
         path = self.directory / "ticket.png"

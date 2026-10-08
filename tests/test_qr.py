@@ -86,7 +86,6 @@ class QRTests(unittest.TestCase):
         render_qr(TEXT, path)
         data = path.read_bytes()
         bomb = _png_chunk(b"zTXt", b"k\x00\x00" + zlib.compress(b"a" * 5_000_000))
-        # Insert the chunk right after the 8-byte signature and the IHDR chunk.
         header_end = 8 + 12 + struct.unpack(">I", data[8:12])[0]
         crafted = self.directory / "bomb.png"
         crafted.write_bytes(data[:header_end] + bomb + data[header_end:])
@@ -103,7 +102,7 @@ class QRTests(unittest.TestCase):
 
     def test_render_requires_text(self) -> None:
         with self.assertRaises(TypeError):
-            render_qr(b"bytes", self.directory / "x.png")  # type: ignore[arg-type]
+            render_qr(b"bytes", self.directory / "x.png")
 
 
 if __name__ == "__main__":

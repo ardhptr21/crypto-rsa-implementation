@@ -11,6 +11,8 @@ if str(SOURCE_DIRECTORY) not in sys.path:
 from crypto import (
     DecryptionError,
     EncodingError,
+    RSAPrivateKey,
+    RSAPublicKey,
     decrypt_oaep,
     encrypt_oaep,
     generate_key_pair,
@@ -42,6 +44,20 @@ class RSAIntegrationTests(unittest.TestCase):
             self.private_key.private_operation(encrypted),
             representative,
         )
+
+    def test_private_key_rejects_composite_factors(self) -> None:
+        with self.assertRaises(ValueError):
+            RSAPrivateKey(n=225, e=5, d=5, p=9, q=25)
+
+    def test_private_key_rejects_negative_exponent(self) -> None:
+        with self.assertRaises(ValueError):
+            RSAPrivateKey(n=15, e=3, d=-1, p=3, q=5)
+
+    def test_rsa_keys_reject_even_moduli_and_factors(self) -> None:
+        with self.assertRaises(ValueError):
+            RSAPublicKey(n=6, e=5)
+        with self.assertRaises(ValueError):
+            RSAPrivateKey(n=6, e=5, d=1, p=2, q=3)
 
     def test_oaep_round_trip(self) -> None:
         message = b"QR ticket secret"

@@ -21,8 +21,6 @@ def render_qr(
 
 
 def read_qr(path: str | Path) -> str:
-    # The image is untrusted input: Pillow can raise OSError, ValueError or
-    # DecompressionBombError for broken files, and none may escape.
     try:
         with Image.open(path) as image:
             grayscale = image.convert("L")

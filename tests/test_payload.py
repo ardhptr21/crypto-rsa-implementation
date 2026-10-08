@@ -8,7 +8,7 @@ if str(SOURCE_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(SOURCE_DIRECTORY))
 
 from qrticket.errors import PayloadFormatError
-from qrticket.payload import PREFIX, decode_payload, encode_payload
+from qrticket.payload import MAX_PAYLOAD_LENGTH, PREFIX, decode_payload, encode_payload
 
 
 TICKET = b"V1|TKT-0001|EVENT-2026|2026-12-31|STUDENT"
@@ -56,7 +56,6 @@ class PayloadTests(unittest.TestCase):
                     decode_payload(text)
 
     def test_rejects_non_canonical_base64(self) -> None:
-        # "QR" decodes to b"A" but the canonical form is "QQ".
         with self.assertRaises(PayloadFormatError):
             decode_payload("RQT1.QR.QQ")
 
@@ -70,11 +69,18 @@ class PayloadTests(unittest.TestCase):
         with self.assertRaises(PayloadFormatError):
             encode_payload(TICKET, b"")
 
+    def test_rejects_payloads_over_the_limit(self) -> None:
+        oversized = "RQT1." + "A" * MAX_PAYLOAD_LENGTH + ".QQ"
+        with self.assertRaises(PayloadFormatError):
+            decode_payload(oversized)
+        with self.assertRaises(PayloadFormatError):
+            encode_payload(b"A" * MAX_PAYLOAD_LENGTH, SIGNATURE)
+
     def test_type_errors(self) -> None:
         with self.assertRaises(TypeError):
-            encode_payload("text", SIGNATURE)  # type: ignore[arg-type]
+            encode_payload("text", SIGNATURE)
         with self.assertRaises(TypeError):
-            decode_payload(b"RQT1.a.b")  # type: ignore[arg-type]
+            decode_payload(b"RQT1.a.b")
 
 
 if __name__ == "__main__":

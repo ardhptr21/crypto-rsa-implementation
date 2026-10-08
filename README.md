@@ -1,7 +1,7 @@
 # RSA QR Ticket
 
-This is the first implementation layer for the offline QR ticket verification
-system. RSA and its supporting number-theory operations are implemented in
+This project implements an offline QR ticket verification system. RSA and its
+supporting number-theory operations are implemented in
 readable Python. The RSA code has **no third-party dependencies**; only the QR layer (below) uses libraries.
 
 Python standard-library modules are used only for general-purpose facilities:
@@ -34,8 +34,15 @@ src/
     oaep.py            Safe randomized RSA encryption
     pss.py             Safe randomized RSA signatures
     serialization.py   Readable key persistence
+  qrticket/            Signed ticket and QR application package
+    ticket.py          Validated ticket data and serialization
+    payload.py         Compact canonical QR payload encoding
+    issuer.py          Ticket signing and QR issuing
+    verifier.py        Signature, event, and expiry verification
+    qr.py              QR image rendering and reading
 tests/                 Standard-library unittest suite
 examples/demo.py       End-to-end demonstration
+examples/qr_demo.py    QR ticket demonstration
 ```
 
 The `src` layout prevents accidental imports from the repository root and keeps
@@ -43,25 +50,35 @@ application code separate from tests, examples, and project configuration.
 
 ## Setup
 
-The tests and example run directly from a source checkout. An editable install
-also installs the QR libraries (segno, zxing-cpp, Pillow) that the tests need:
+The recommended setup creates a project-local virtual environment and installs
+the versions recorded in `uv.lock`:
 
 ```powershell
-python -m pip install -e .
+uv sync
 ```
+
+The standard `venv` and `pip` workflow is also supported:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python -m pip install -e .
+```
+
+The QR tests and demo require Segno, ZXing-CPP, and Pillow. The RSA and signed
+payload modules do not import those libraries.
 
 ## Run the tests
 
 From this directory:
 
 ```powershell
-python -m unittest discover -s tests -v
+uv run python -m unittest discover -s tests -v
 ```
 
 ## Run the demonstration
 
 ```powershell
-python examples/demo.py
+uv run python examples/demo.py
 ```
 
 The demonstration generates a new 2048-bit key, performs an OAEP encryption
@@ -114,17 +131,21 @@ public_key, private_key = generate_key_pair()
 ticket = Ticket("TKT-0001", "EVENT-2026", date(2026, 12, 31), "STUDENT")
 issue_ticket_qr(ticket, private_key, "ticket.png")
 
-result = verify_qr_image("ticket.png", public_key)
+result = verify_qr_image(
+    "ticket.png",
+    public_key,
+    expected_event="EVENT-2026",
+)
 print(result.status)   # VerifyStatus.VALID
 ```
 
 Verification checks, in order: the payload format, the RSA-PSS signature, the
-ticket fields, and that today is not past the valid-until date (inclusive).
-Possible results: `VALID`, `BAD_FORMAT`, `BAD_SIGNATURE`, `EXPIRED`,
-`UNREADABLE_QR`.
+ticket fields, the expected event when supplied, and that today is not past the
+valid-until date (inclusive). Possible results: `VALID`, `BAD_FORMAT`,
+`BAD_SIGNATURE`, `WRONG_EVENT`, `EXPIRED`, `UNREADABLE_QR`.
 
 Limitation: verification is fully offline, so a photographed or copied QR code
 passes as many times as it is scanned. Catching reuse needs a shared list of
 used ticket ids, which this project does not include.
 
-Run the demo with `python examples/qr_demo.py`.
+Run the demo with `uv run python examples/qr_demo.py`.

@@ -7,6 +7,7 @@ from .errors import PayloadFormatError
 
 PREFIX = "RQT1"
 SEPARATOR = "."
+MAX_PAYLOAD_LENGTH = 4096
 
 _BASE64URL = re.compile(r"[A-Za-z0-9_-]+")
 
@@ -33,14 +34,19 @@ def encode_payload(ticket_bytes: bytes, signature: bytes) -> str:
         raise TypeError("ticket and signature must be bytes")
     if not ticket_bytes or not signature:
         raise PayloadFormatError("ticket and signature must not be empty")
-    return SEPARATOR.join(
+    payload = SEPARATOR.join(
         (PREFIX, _encode_part(ticket_bytes), _encode_part(signature))
     )
+    if len(payload) > MAX_PAYLOAD_LENGTH:
+        raise PayloadFormatError("payload is too long")
+    return payload
 
 
 def decode_payload(text: str) -> tuple[bytes, bytes]:
     if not isinstance(text, str):
         raise TypeError("payload must be a string")
+    if len(text) > MAX_PAYLOAD_LENGTH:
+        raise PayloadFormatError("payload is too long")
     parts = text.split(SEPARATOR)
     if len(parts) != 3 or parts[0] != PREFIX:
         raise PayloadFormatError("payload must look like RQT1.<ticket>.<signature>")

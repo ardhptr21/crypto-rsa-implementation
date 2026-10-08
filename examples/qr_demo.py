@@ -25,7 +25,12 @@ def main() -> None:
         payload = issue_ticket_qr(ticket, private_key, path)
         print(f"QR payload: {len(payload)} characters")
 
-        result = verify_qr_image(path, public_key, today=date(2026, 6, 1))
+        result = verify_qr_image(
+            path,
+            public_key,
+            today=date(2026, 6, 1),
+            expected_event="EVENT-2026",
+        )
         print(f"Genuine ticket:  {result.status.value} {result.ticket}")
 
         late = verify_qr_image(path, public_key, today=date(2027, 1, 1))

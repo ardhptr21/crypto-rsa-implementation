@@ -3,7 +3,6 @@ from pathlib import Path
 from crypto import RSAPrivateKey, sign_pss
 
 from .payload import encode_payload
-from .qr import render_qr
 from .ticket import Ticket
 
 
@@ -21,6 +20,8 @@ def issue_ticket_qr(
     path: str | Path,
     **render_options,
 ) -> str:
+    from .qr import render_qr
+
     payload = issue_ticket(ticket, private_key)
     render_qr(payload, path, **render_options)
     return payload
