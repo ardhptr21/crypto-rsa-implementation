@@ -59,6 +59,7 @@ class CLITests(unittest.TestCase):
             self.assertTrue(private_key_path.exists())
             self.assertTrue((root / "keys" / "event.public.json").exists())
             self.assertTrue((output_directory / "manifest.csv").exists())
+            self.assertTrue((output_directory / "event.json").exists())
             self.assertTrue((output_directory / "public-key.json").exists())
             self.assertEqual(len(list((output_directory / "qr").glob("*.png"))), 3)
             self.assertIn("Generated tickets: 3", messages)

@@ -11,6 +11,7 @@ import tempfile
 from crypto import RSAPrivateKey, save_public_key
 
 from .errors import TicketFormatError
+from .event import EventProfile, public_key_fingerprint, save_event_profile
 from .issuer import issue_ticket_qr
 from .ticket import Ticket
 
@@ -37,6 +38,7 @@ class BatchResult:
     output_directory: Path
     manifest_path: Path
     public_key_path: Path
+    event_profile_path: Path
     tickets: tuple[Ticket, ...]
 
     @property
@@ -147,7 +149,16 @@ def issue_ticket_batch(
                     if progress is not None:
                         progress(len(tickets), total, ticket)
 
-        save_public_key(private_key.public_key, temporary / "public-key.json")
+        public_key_file = "public-key.json"
+        save_public_key(private_key.public_key, temporary / public_key_file)
+        profile = EventProfile(
+            event=event,
+            valid_until=valid_until,
+            batch_id=batch_id,
+            public_key_file=public_key_file,
+            public_key_fingerprint=public_key_fingerprint(private_key.public_key),
+        )
+        save_event_profile(profile, temporary / "event.json")
         temporary.replace(destination)
     except BaseException:
         shutil.rmtree(temporary, ignore_errors=True)
@@ -158,5 +169,6 @@ def issue_ticket_batch(
         output_directory=destination,
         manifest_path=destination / "manifest.csv",
         public_key_path=destination / "public-key.json",
+        event_profile_path=destination / "event.json",
         tickets=tuple(tickets),
     )

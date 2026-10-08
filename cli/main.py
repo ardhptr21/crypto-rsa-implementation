@@ -292,6 +292,7 @@ def run_interactive(
     output_fn(f"Batch ID: {result.batch_id}")
     output_fn(f"QR files: {result.output_directory / 'qr'}")
     output_fn(f"Manifest: {result.manifest_path}")
+    output_fn(f"Event profile: {result.event_profile_path}")
     output_fn(f"Verification key: {result.public_key_path}")
     output_fn(f"Issuer public key: {public_key_path}")
     return 0

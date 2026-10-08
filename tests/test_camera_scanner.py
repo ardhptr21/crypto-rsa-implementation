@@ -1,3 +1,4 @@
+import csv
 from datetime import date
 from pathlib import Path
 import sys
@@ -12,9 +13,21 @@ if str(PROJECT_DIRECTORY) not in sys.path:
 if str(SOURCE_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(SOURCE_DIRECTORY))
 
-from cli.scanner import CameraScannerError, _default_decoder, scan_camera
-from crypto import generate_key_pair
-from qrticket import Ticket, VerifyStatus, issue_ticket, issue_ticket_qr
+from cli.scanner import (
+    CameraScannerError,
+    _default_decoder,
+    _load_scanner_profile,
+    scan_camera,
+)
+from crypto import generate_key_pair, save_public_key
+from qrticket import (
+    Ticket,
+    TicketType,
+    VerifyStatus,
+    issue_ticket,
+    issue_ticket_batch,
+    issue_ticket_qr,
+)
 
 
 class FakeCapture:
@@ -115,17 +128,82 @@ class CameraScannerTests(unittest.TestCase):
         )
         self.assertEqual(summary.total, 1)
 
+    def test_scan_is_written_to_the_audit_log(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            log_path = Path(directory) / "scan-log.csv"
+            cv2_module = FakeCV2([ord("q")])
+            summary = scan_camera(
+                public_key=self.public_key,
+                expected_event="CAMERA EVENT",
+                today=date(2027, 1, 1),
+                audit_log_path=log_path,
+                scanner_id="GATE-A",
+                cv2_module=cv2_module,
+                decode_frame=lambda frame: [self.payload],
+                output_fn=lambda message: None,
+            )
+
+            with log_path.open(encoding="utf-8", newline="") as file:
+                rows = list(csv.DictReader(file))
+            self.assertEqual(summary.audit_log_path, log_path)
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["scanner_id"], "GATE-A")
+            self.assertEqual(rows[0]["status"], "valid")
+            self.assertEqual(rows[0]["ticket_id"], "CAMERA-0001")
+            self.assertEqual(rows[0]["ticket_type"], "VIP")
+
+    def test_event_profile_loads_its_matching_public_key(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            result = issue_ticket_batch(
+                event="CAMERA EVENT",
+                valid_until=date(2027, 12, 31),
+                ticket_types=(TicketType("VIP", 1),),
+                private_key=self.private_key,
+                output_directory=Path(directory) / "batch",
+                batch_id="CAMERA-BATCH",
+            )
+            profile, key_path, public_key = _load_scanner_profile(
+                result.event_profile_path
+            )
+            self.assertEqual(profile.event, "CAMERA EVENT")
+            self.assertEqual(key_path, result.public_key_path)
+            self.assertEqual(public_key, self.public_key)
+
+    def test_event_profile_rejects_a_mismatched_public_key(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            result = issue_ticket_batch(
+                event="CAMERA EVENT",
+                valid_until=date(2027, 12, 31),
+                ticket_types=(TicketType("VIP", 1),),
+                private_key=self.private_key,
+                output_directory=Path(directory) / "batch",
+            )
+            other_public_key, _ = generate_key_pair(
+                bits=1024,
+                primality_rounds=24,
+            )
+            save_public_key(other_public_key, result.public_key_path)
+            with self.assertRaises(CameraScannerError):
+                _load_scanner_profile(result.event_profile_path)
+
     def test_wrong_event_is_reported(self) -> None:
-        cv2_module = FakeCV2([ord("q")])
-        summary = scan_camera(
-            public_key=self.public_key,
-            expected_event="OTHER EVENT",
-            today=date(2027, 1, 1),
-            cv2_module=cv2_module,
-            decode_frame=lambda frame: [self.payload],
-            output_fn=lambda message: None,
-        )
-        self.assertEqual(summary.counts[VerifyStatus.WRONG_EVENT], 1)
+        with tempfile.TemporaryDirectory() as directory:
+            log_path = Path(directory) / "scan-log.csv"
+            cv2_module = FakeCV2([ord("q")])
+            summary = scan_camera(
+                public_key=self.public_key,
+                expected_event="OTHER EVENT",
+                today=date(2027, 1, 1),
+                audit_log_path=log_path,
+                cv2_module=cv2_module,
+                decode_frame=lambda frame: [self.payload],
+                output_fn=lambda message: None,
+            )
+            with log_path.open(encoding="utf-8", newline="") as file:
+                rows = list(csv.DictReader(file))
+            self.assertEqual(summary.counts[VerifyStatus.WRONG_EVENT], 1)
+            self.assertEqual(rows[0]["status"], "wrong_event")
+            self.assertEqual(rows[0]["ticket_id"], "CAMERA-0001")
 
     def test_multiple_qr_codes_are_not_verified(self) -> None:
         cv2_module = FakeCV2([ord("q")])

@@ -38,6 +38,7 @@ src/
     ticket.py          Validated ticket data and serialization
     payload.py         Compact canonical QR payload encoding
     issuer.py          Ticket signing and QR issuing
+    event.py           Event profiles and public-key fingerprints
     batch.py           Atomic multi-type ticket batch generation
     verifier.py        Signature, event, and expiry verification
     qr.py              QR image rendering and reading
@@ -91,6 +92,7 @@ batch is generated for the same event. A completed output directory looks like:
 
 ```text
 output/university-expo/
+  event.json
   manifest.csv
   public-key.json
   qr/
@@ -99,9 +101,10 @@ output/university-expo/
 ```
 
 The CSV manifest lists the batch id, ticket id, event, expiration date, ticket
-type, and QR filename. The public key can be distributed to scanners. The
-unencrypted private key is stored separately under `keys/` by default and must
-not be shared.
+type, and QR filename. The event profile contains the scanner configuration and
+a fingerprint of the public key, while the public key performs verification.
+Both files can be distributed to scanners. The unencrypted private key is
+stored separately under `keys/` by default and must not be shared.
 
 Batch generation is also available as a Python API:
 
@@ -133,24 +136,28 @@ Start the interactive camera scanner:
 uv run python cli/scanner.py
 ```
 
-Enter the generated `public-key.json` path and the exact event name. A camera
-window opens and verifies one QR ticket at a time. The window and terminal show
-whether the ticket is valid, expired, for another event, malformed, or has an
-invalid RSA signature. Remove a ticket from view before presenting the next
-one. Press `Q` or `Esc` to finish and print the session summary.
+Enter the generated `event.json` path. The scanner loads the expected event and
+public key automatically and confirms the key fingerprint before the camera
+opens. The window and terminal show whether each ticket is valid, expired, for
+another event, malformed, or has an invalid RSA signature. Remove a ticket from
+view before presenting the next one. Press `Q` or `Esc` to finish and print the
+session summary.
 
 The scanner can also be configured with command-line options:
 
 ```powershell
 uv run python cli/scanner.py `
-  --public-key output/university-expo/public-key.json `
-  --event "University Expo" `
-  --camera 0
+  --profile output/university-expo/event.json `
+  --camera 0 `
+  --scanner-id "GATE-A"
 ```
 
 Use `--camera 1` or another index when the computer has multiple cameras. The
 scanner verifies tickets completely offline. It suppresses repeated reads while
-the same QR remains in view, but it does not maintain a redeemed-ticket ledger.
+the same QR remains in view and appends unique scan results to `scan-log.csv`.
+The log includes the timestamp, scanner id, result, ticket id, event, ticket
+type, and expiry date, but never stores the raw signed QR payload. This is an
+audit log, not a redeemed-ticket ledger, so it does not block reused tickets.
 
 ## Run the tests
 

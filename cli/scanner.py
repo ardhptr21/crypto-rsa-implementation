@@ -1,14 +1,22 @@
 import argparse
 from collections import Counter
 from collections.abc import Callable
+import csv
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 from crypto import RSAPublicKey, load_public_key
-from qrticket import VerificationResult, VerifyStatus, verify_payload
-from qrticket.batch import slugify
+from qrticket import (
+    EventProfile,
+    TicketFormatError,
+    VerificationResult,
+    VerifyStatus,
+    load_event_profile,
+    public_key_fingerprint,
+    verify_payload,
+)
 from qrticket.ticket import Ticket
 
 
@@ -26,6 +34,7 @@ class CameraScannerError(Exception):
 @dataclass(frozen=True, slots=True)
 class CameraScanSummary:
     counts: dict[VerifyStatus, int]
+    audit_log_path: Path | None = None
 
     @property
     def total(self) -> int:
@@ -51,29 +60,31 @@ def _prompt_required(
         output_fn("A value is required.")
 
 
-def _prompt_public_key(
+def _load_scanner_profile(
+    path: str | Path,
+) -> tuple[EventProfile, Path, RSAPublicKey]:
+    profile_path = Path(path)
+    profile = load_event_profile(profile_path)
+    key_path = profile_path.parent / profile.public_key_file
+    public_key = load_public_key(key_path)
+    fingerprint = public_key_fingerprint(public_key)
+    if fingerprint != profile.public_key_fingerprint:
+        raise CameraScannerError("event profile does not match its public key")
+    return profile, key_path, public_key
+
+
+def _prompt_profile(
     input_fn: InputFunction,
     output_fn: OutputFunction,
-) -> tuple[Path, RSAPublicKey]:
+) -> tuple[Path, EventProfile, Path, RSAPublicKey]:
     while True:
-        value = _prompt_required("Public key file: ", input_fn, output_fn)
-        path = Path(value.strip('"\''))
+        value = _prompt_required("Event profile file: ", input_fn, output_fn)
+        profile_path = Path(value.strip('"\''))
         try:
-            return path, load_public_key(path)
-        except (OSError, TypeError, ValueError) as error:
-            output_fn(f"Could not load public key: {error}")
-
-
-def _prompt_event(input_fn: InputFunction, output_fn: OutputFunction) -> str:
-    while True:
-        event = _prompt_required("Expected event name or ID: ", input_fn, output_fn)
-        try:
-            Ticket("VALIDATION", event, date.max, "VALIDATION")
-            slugify(event)
-        except (TypeError, ValueError) as error:
-            output_fn(f"Invalid event: {error}")
-            continue
-        return event
+            profile, key_path, public_key = _load_scanner_profile(profile_path)
+            return profile_path, profile, key_path, public_key
+        except (OSError, TypeError, ValueError, CameraScannerError) as error:
+            output_fn(f"Could not load event profile: {error}")
 
 
 def _parse_date(value: str | None) -> date:
@@ -169,6 +180,47 @@ def _print_summary(summary: CameraScanSummary, output_fn: OutputFunction) -> Non
         count = summary.counts.get(status, 0)
         if count:
             output_fn(f"{status.value}: {count}")
+    if summary.audit_log_path is not None:
+        output_fn(f"Audit log: {summary.audit_log_path}")
+
+
+def _write_audit_record(
+    path: Path,
+    scanner_id: str,
+    result: VerificationResult,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_header = not path.exists() or path.stat().st_size == 0
+    ticket = result.ticket
+
+    with path.open("a", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(
+            file,
+            fieldnames=(
+                "timestamp",
+                "scanner_id",
+                "status",
+                "ticket_id",
+                "event",
+                "ticket_type",
+                "valid_until",
+            ),
+        )
+        if write_header:
+            writer.writeheader()
+        writer.writerow(
+            {
+                "timestamp": datetime.now().astimezone().isoformat(timespec="seconds"),
+                "scanner_id": scanner_id,
+                "status": result.status.value,
+                "ticket_id": ticket.ticket_id if ticket is not None else "",
+                "event": ticket.event if ticket is not None else "",
+                "ticket_type": ticket.category if ticket is not None else "",
+                "valid_until": (
+                    ticket.valid_until.isoformat() if ticket is not None else ""
+                ),
+            }
+        )
 
 
 def scan_camera(
@@ -176,6 +228,8 @@ def scan_camera(
     expected_event: str,
     camera_index: int = 0,
     today: date | None = None,
+    audit_log_path: str | Path | None = None,
+    scanner_id: str = "CAMERA-0",
     cv2_module: Any | None = None,
     decode_frame: DecodeFunction | None = None,
     output_fn: OutputFunction | None = None,
@@ -184,7 +238,11 @@ def scan_camera(
         raise TypeError("public_key must be an RSAPublicKey")
     if not isinstance(expected_event, str) or not expected_event:
         raise TypeError("expected_event must be a non-empty string")
-    Ticket("VALIDATION", expected_event, date.max, "VALIDATION")
+    try:
+        Ticket("VALIDATION", expected_event, date.max, "VALIDATION")
+        Ticket("VALIDATION", "VALIDATION", date.max, scanner_id)
+    except TicketFormatError as error:
+        raise ValueError(str(error)) from error
     if isinstance(camera_index, bool) or not isinstance(camera_index, int):
         raise TypeError("camera_index must be an integer")
     if camera_index < 0:
@@ -203,6 +261,7 @@ def scan_camera(
             ) from error
     decode_frame = _default_decoder if decode_frame is None else decode_frame
     output_fn = print if output_fn is None else output_fn
+    audit_path = Path(audit_log_path) if audit_log_path is not None else None
 
     capture = cv2_module.VideoCapture(camera_index)
     if not capture.isOpened():
@@ -253,6 +312,8 @@ def scan_camera(
                     )
                     counts[current_result.status] += 1
                     _print_result(current_result, output_fn)
+                    if audit_path is not None:
+                        _write_audit_record(audit_path, scanner_id, current_result)
 
                 if current_result is not None:
                     overlay_title = _status_label(current_result)
@@ -285,7 +346,7 @@ def scan_camera(
         capture.release()
         cv2_module.destroyAllWindows()
 
-    summary = CameraScanSummary(dict(counts))
+    summary = CameraScanSummary(dict(counts), audit_path)
     _print_summary(summary, output_fn)
     return summary
 
@@ -296,28 +357,57 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--public-key", type=Path)
     parser.add_argument("--event")
+    parser.add_argument("--profile", type=Path)
     parser.add_argument("--camera", type=int, default=0)
     parser.add_argument("--date")
+    parser.add_argument("--log", type=Path)
+    parser.add_argument("--scanner-id")
     arguments = parser.parse_args(argv)
 
     _print_banner(print)
     try:
-        if arguments.public_key is None:
-            key_path, public_key = _prompt_public_key(input, print)
-        else:
+        if arguments.profile is not None:
+            if arguments.public_key is not None or arguments.event is not None:
+                raise CameraScannerError(
+                    "use either --profile or --public-key with --event"
+                )
+            profile_path = arguments.profile
+            profile, key_path, public_key = _load_scanner_profile(profile_path)
+            event = profile.event
+            default_log = profile_path.parent / "scan-log.csv"
+        elif arguments.public_key is not None or arguments.event is not None:
+            if arguments.public_key is None or arguments.event is None:
+                raise CameraScannerError(
+                    "manual setup requires both --public-key and --event"
+                )
+            profile = None
             key_path = arguments.public_key
             public_key = load_public_key(key_path)
+            event = arguments.event
+            default_log = Path("scan-log.csv")
+        else:
+            profile_path, profile, key_path, public_key = _prompt_profile(input, print)
+            event = profile.event
+            default_log = profile_path.parent / "scan-log.csv"
 
-        event = arguments.event or _prompt_event(input, print)
         scan_date = _parse_date(arguments.date)
+        audit_log_path = arguments.log or default_log
+        scanner_id = arguments.scanner_id or f"CAMERA-{arguments.camera}"
         print(f"Public key: {key_path}")
         print(f"Expected event: {event}")
+        if profile is not None:
+            print(f"Batch ID: {profile.batch_id}")
+            print(f"Tickets valid until: {profile.valid_until.isoformat()}")
         print(f"Scan date: {scan_date.isoformat()}")
+        print(f"Scanner ID: {scanner_id}")
+        print(f"Audit log: {audit_log_path}")
         scan_camera(
             public_key=public_key,
             expected_event=event,
             camera_index=arguments.camera,
             today=scan_date,
+            audit_log_path=audit_log_path,
+            scanner_id=scanner_id,
         )
         return 0
     except (OSError, TypeError, ValueError, CameraScannerError) as error:

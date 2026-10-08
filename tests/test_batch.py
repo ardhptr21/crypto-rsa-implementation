@@ -16,6 +16,8 @@ from qrticket import (
     TicketType,
     VerifyStatus,
     issue_ticket_batch,
+    load_event_profile,
+    public_key_fingerprint,
     verify_qr_image,
 )
 
@@ -53,6 +55,15 @@ class BatchTests(unittest.TestCase):
         self.assertTrue(all(item[1] == 3 for item in progress))
         self.assertEqual(result.output_directory, destination)
         self.assertEqual(load_public_key(result.public_key_path), self.public_key)
+        profile = load_event_profile(result.event_profile_path)
+        self.assertEqual(profile.event, "EVENT 2027")
+        self.assertEqual(profile.valid_until, date(2027, 12, 31))
+        self.assertEqual(profile.batch_id, "BATCH-01")
+        self.assertEqual(profile.public_key_file, "public-key.json")
+        self.assertEqual(
+            profile.public_key_fingerprint,
+            public_key_fingerprint(self.public_key),
+        )
         self.assertEqual(
             [ticket.ticket_id for ticket in result.tickets],
             [
